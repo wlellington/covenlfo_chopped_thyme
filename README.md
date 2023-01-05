@@ -67,7 +67,7 @@ At audio frequencies, this mode sounds pretty wild, so try using it as a digital
 11. Added random freq squarewave LFO waveshape with "free" frequency mults between 2 and 127 (any freq multiple in that range)
 12. Refactored generator functions to have single return point (for consistancy, expandability, but mostly for multi mode support)
 13. Added "multi mode" that randomly selects between algorithms Tri, saw, ramp, square, samphold, psike, risestep, randsqroct, and randgate. This mode takes a lot of inspiration from the QU-BIT NanoRand's Green mode
-14. (Work in progress) Added random trigger LFO that has 50/50 chance to create a trigger each cycle (fun in sync mode)
+14. Added random trigger LFO that has 50/50 chance to create a trigger each cycle (fun in sync mode). The generated trigger is ~8ms, but this can be changed for shorter or longer times if desired (8 just seemed to be fairly stable).
 
 ## Setup
 
