@@ -1,23 +1,11 @@
-// Changes made in this version:
-// 1) Changed formatting and performed various style cleanups, added comments
-// 2) Replaced hardcoded pin names with #defines for readability, same for a few constants
-// 3) Added new sync/clock/freq devisions to div table
-// 4) Updated phasor calculation math to:
-//    4.1) Allow the first divisor value to be values other than one and for funky divisions (good in sync mode)
-//    4.2) Use a "base phasor" for phasors 2,3,4 rather than relying on phasor1
-// 5) Use freq CV and pot value as input to create clock mult/division in sync mode
-//     This required using timout to jump out of sync mode, rather than pot movement
-// 6) Changed CV and Pot behavior in free running mode to sum values BEFORE HZ table lookup (for better CV based control)
-// 7) Added "spike" LFO waveshape (spaced inverted exponentials) (includes new table lookup file)
-// 8) Added rising 16 step LFO waveshape
-// 9) Added random freq squarewave LFO waveshape with octave relationships (renamed existing wave "SAMPHOLD")
-// 10) Added random "on/off" gate "randgate" LFO w/ 50/50 chance for state change on edge
-// 11) Added random freq squarewave LFO waveshape with "free" frequency mults between 2 and 127 (any freq multiple in that range)
-// 12) Refactored generator functions to have single return point (for consistancy, expandability, but mostly for multi mode support)
-// 13) Added "multi mode" that randomly selects between algorithms Tri, saw, ramp, square, samphold, psike, risestep, randsqroct, and randgate
-//      This mode takes a lot of inspiration from the QU-BIT NanoRand's Green mode
-// *14) Added random trigger LFO that has 50/50 chance to create a trigger each cycle (fun in sync mode)
+// Chopped Thyme Alternate Firmware for Coven LFO
+// Writen by Wesley Ellington 
+// Github: https://github.com/wlellington/covenlfo_chopped_thyme
 
+// COVEN LFO Original Firmware  written by CCTVFM
+// Github: https://github.com/cctvfm/covenlfo
+
+// See README.md for list of new features, descriptions, and usage.
 
 // Important things to note:
 // - The PWM (DAC) outputs are all inverted, meaning a digital value of 0 is the max voltage 
@@ -32,7 +20,7 @@
 #include "tables.h"
 #include <Arduino.h>
 
-// Waveform enum constants
+// Waveform mode number constants
 #define TRIANGLE    1
 #define SAW         2
 #define RAMP        3
@@ -43,13 +31,12 @@
 #define RANDSQROCT  8
 #define RANDGATE    9
 #define RANDSQR     10
-//#define RANDTRIG    11
-#define MULTIMODE   11
-#define NUMWAVS     11
+#define RANDTRIG    11
+#define MULTIMODE   12
+#define NUMWAVS     12
 #define MULTISTART  1
 #define MULTIEND    10          // This is non inclusive (10 means up through wave 9)
                                 // I left out the free freq random squre since the oct version sounds more musical
-
 
 #define FREQ     0
 #define POT      1
@@ -68,6 +55,12 @@ long unsigned int phasor4;
 
 char randNum[4];
 char randMode[4];
+long unsigned int lastPulse[4];
+
+// Trigger length time
+// 8ms but in microseconds (this is a bit longer than a normal trigger @ 5ms, but seems a bit more stable w/ longer times)
+// This can be tweaked for whatever trigger time you need, just change the first value for the time in ms (*1000 to convert to microseconds)
+#define TRIGLEN 8 * 1000 
 
 FlashStorage(div_storage, int);
 FlashStorage(wave_storage, int);
@@ -103,7 +96,6 @@ char divs[DIVSIZE][4]={
 // A4 : CV1 (FREQ)
 // A8 : Random Seed? (Floating?)
 // A10 : CV2 (SYNC) 
-
 
 #define OUT1_PIN 1
 #define OUT2_PIN 9
@@ -649,9 +641,33 @@ unsigned char generator(unsigned long int acc, char waveshape, char channel) {
     
       break; // end rand square
 
-    //case RANDTRIG:
-
-    //  break; // end rand trig
+    case RANDTRIG:
+    // At the start of each cycle...
+      if(shifted_acc < previous_acc[channel]) {
+        // Roll a 1 or a zero 
+        char rando = (char) random(0, 2);
+        // If one, set output high
+        if (rando == 1){
+          rando = 0;
+        }
+        // Otherwise, stay low
+        else{
+          rando = 255;
+        }
+        randNum[channel] = rando;
+        lastPulse[channel] = micros();
+      }
+      // If output is still set high
+      if (randNum[channel] == 0){
+        // Check to see if total time since trigger open is larger then length
+        if ((micros() - lastPulse[channel]) > TRIGLEN){
+          // If so, set output low for remainder of cycle
+          randNum[channel] = 255;       
+        }        
+      }
+ 
+      ret_val = randNum[channel]; 
+      break; // end rand trig
   }
 
   // Undo any weirdness created by multimode 
